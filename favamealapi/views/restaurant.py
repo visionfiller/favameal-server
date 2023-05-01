@@ -3,7 +3,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
-from favamealapi.models import Restaurant
+from favamealapi.models import Restaurant, FavoriteRestaurant
+from rest_framework.decorators import action
 
 
 class RestaurantSerializer(serializers.ModelSerializer):
@@ -12,7 +13,7 @@ class RestaurantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Restaurant
         # TODO: Add 'is_favorite' field to RestaurantSerializer
-        fields = ('id', 'name', 'address',)
+        fields = ('id', 'name', 'address','favorites', 'is_favorite')
 
 
 class RestaurantView(ViewSet):
@@ -45,7 +46,7 @@ class RestaurantView(ViewSet):
 
             # TODO: Add the correct value to the `is_favorite` property of the requested restaurant
             # Hint -- remember the 'many to many field' for referencing the records of users who have favorited this restaurant
-
+            restaurant.is_favorite = request.auth.user in restaurant.favorites.all()
             serializer = RestaurantSerializer(restaurant)
             return Response(serializer.data)
         except Restaurant.DoesNotExist as ex:
@@ -58,6 +59,8 @@ class RestaurantView(ViewSet):
             Response -- JSON serialized list of restaurants
         """
         restaurants = Restaurant.objects.all()
+        for restaurant in restaurants :
+             restaurant.is_favorite = request.auth.user in restaurant.favorites.all()
 
         # TODO: Add the correct value to the `is_favorite` property of each restaurant
         # Hint -- Iterate over restaurants and look at each one's collection of favorites.
@@ -66,6 +69,22 @@ class RestaurantView(ViewSet):
         serializer = RestaurantSerializer(restaurants, many=True)
 
         return Response(serializer.data)
+    @action(methods=['post'], detail=True)
+    def favorite(self, request, pk):
+        """Post request for a user to sign up for an event"""
+    
+       
+        restaurant = Restaurant.objects.get(pk=pk)
+        restaurant.favorites.add(request.auth.user)
+        return Response({'message': 'Restaurant favorited'}, status=status.HTTP_201_CREATED)
+    @action(methods=['delete'], detail=True)
+    def unfavorite(self, request, pk):
+            """Post request for a user to sign up for an event"""
+        
+        
+            restaurant = Restaurant.objects.get(pk=pk)
+            restaurant.favorites.remove(request.auth.user)
+            return Response({'message': 'Restaurant unfavorited'}, status=status.HTTP_204_NO_CONTENT)      
 
     # TODO: Write a custom action named `favorite` that will allow a client to
     # send a POST request to /restaurant/2/favorite and add the restaurant as a favorite

@@ -16,7 +16,7 @@ class MealSerializer(serializers.ModelSerializer):
     class Meta:
         model = Meal
         # TODO: Add 'user_rating', 'avg_rating', 'is_favorite' fields to MealSerializer
-        fields = ('id', 'name', 'restaurant',)
+        fields = ('id', 'name', 'restaurant', 'favorites', 'is_favorite', 'mealrating', 'user_rating', 'avg_rating')
 
 
 
@@ -50,11 +50,12 @@ class MealView(ViewSet):
             meal = Meal.objects.get(pk=pk)
 
             # TODO: Get the rating for current user and assign to `user_rating` property
-
+            rating_object = MealRating.objects.get(user=request.auth.user, meal=meal)
+            meal.user_rating=rating_object.rating
             # TODO: Get the average rating for requested meal and assign to `avg_rating` property
 
             # TODO: Assign a value to the `is_favorite` property of requested meal
-
+            meal.is_favorite = request.auth.user in meal.favorites.all()
             serializer = MealSerializer(meal)
             return Response(serializer.data)
         except Meal.DoesNotExist as ex:
@@ -73,6 +74,16 @@ class MealView(ViewSet):
         # TODO: Get the average rating for each meal and assign to `avg_rating` property
 
         # TODO: Assign a value to the `is_favorite` property of each meal
+        for meal in meals:
+                meal.is_favorite = request.auth.user in meal.favorites.all()
+                rating_object = MealRating.objects.get(user=request.auth.user, meal=meal)
+                meal.user_rating=rating_object.rating
+                all_ratings = MealRating.objects.all()
+                total_rating = 0
+                for rating in all_ratings:
+                    total_rating += rating.rating 
+                meal.avg_rating = total_rating/len(all_ratings)
+               
 
         serializer = MealSerializer(meals, many=True)
 
@@ -90,3 +101,34 @@ class MealView(ViewSet):
 
     # TODO: Add a custom action named `unfavorite` that will allow a client to send a
     # DELETE request to /meals/3/unfavorite and remove the meal as a favorite
+    @action(methods=['post'], detail=True)
+    def favorite(self, request, pk):
+        """Post request for a user to sign up for an event"""
+    
+       
+        meal = Meal.objects.get(pk=pk)
+        meal.favorites.add(request.auth.user)
+        return Response({'message': 'Meal favorited'}, status=status.HTTP_201_CREATED)
+    @action(methods=['delete'], detail=True)
+    def unfavorite(self, request, pk):
+        """Post request for a user to sign up for an event"""
+    
+        meal = Meal.objects.get(pk=pk)
+        meal.favorites.remove(request.auth.user)
+        return Response({'message': 'Restaurant unfavorited'}, status=status.HTTP_204_NO_CONTENT) 
+    @action(methods=['post'], detail=True)
+    def rate(self, request, pk):
+        """Post request for a user to sign up for an event"""
+        meal = Meal.objects.get(pk=pk)
+        rating_value = request.data.get('rating')
+        rating = MealRating.objects.create(user=request.auth.user, meal=meal, rating=rating_value)
+        
+        return Response({'message': 'Meal rated'}, status=status.HTTP_201_CREATED)
+    @action(methods=['put'], detail=True)
+    def rate(self, request, pk):
+        """Post request for a user to sign up for an event"""
+        meal = Meal.objects.get(pk=pk)
+        mealrating = MealRating.objects.get(user=request.auth.user, meal=meal)
+        mealrating.rating = request.data.get('rating')
+        mealrating.save()
+        return Response({'message': 'Meal rated'}, status=status.HTTP_204_NO_CONTENT)
